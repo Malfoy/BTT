@@ -298,15 +298,26 @@ void usage(){
 		<<endl;
 }
 
+struct args_btt{
+	uint nbFiles;
+	uint coreUsed;
+	uint kmerSize;
+	uint unitigThreshold;
+	uint unitigThreshold_MAX;
+	uint tipingSize;
+	uint ratioCoverage;
+	uint low_coverage_min;
+};
 
-void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int coreUsed,int unitigThreshold,int ratioCoverage,int kmerSize,int unitigThreshold_MAX){
+
+int cleaning(string outFile, string inputUnitig,args_btt arg){
 	auto start=system_clock::now();
 	uint64_t tiping(0),compactions(0),unitigFiltered(0),advanced_tipping(0),island(0),bulles(0);
 	ofstream out(outFile);
 
 	ifstream inUnitigs(inputUnitig);
-	vector<fstream> beginFiles(nbFiles),endFiles(nbFiles);
-	for(uint i(0); i< nbFiles; ++i){
+	vector<fstream> beginFiles(arg.nbFiles),endFiles(arg.nbFiles);
+	for(uint i(0); i< arg.nbFiles; ++i){
 		beginFiles[i].open(".begin"+to_string(i),fstream::out|fstream::in|fstream::binary|fstream::trunc);
 		endFiles[i].open(".end"+to_string(i),fstream::out|fstream::in|fstream::binary|fstream::trunc);
 	}
@@ -326,11 +337,11 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 		getline(inUnitigs,useless);
 		unitig="";
 		getline(inUnitigs,unitig);
-		if(unitig.size()<kmerSize){
+		if(unitig.size()<arg.kmerSize){
 			continue;
 		}
 		uint coverage=parseCoverage(useless);
-		if(((unitigThreshold>1 and coverage<unitigThreshold)) or (coverage>unitigThreshold_MAX and unitigThreshold_MAX>0)){
+		if(((arg.unitigThreshold>1 and coverage<arg.unitigThreshold)) or (coverage>arg.unitigThreshold_MAX and arg.unitigThreshold_MAX>0)){
 			unitigFiltered++;
 			continue;
 		}
@@ -344,40 +355,40 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 		}
 
 
-		begin=unitig.substr(0,kmerSize);
+		begin=unitig.substr(0,arg.kmerSize);
 		beginRc=revComp(begin);
 		hashBegin=str2num(begin);
 		hashBeginRc=str2num(beginRc);
 		if(hashBegin<=hashBeginRc){
-			beginFiles[xs(hashBegin)%nbFiles]<<begin;
-			beginFiles[xs(hashBegin)%nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
+			beginFiles[xs(hashBegin)%arg.nbFiles]<<begin;
+			beginFiles[xs(hashBegin)%arg.nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
 		}else{
-			endFiles[xs(hashBeginRc)%nbFiles]<<beginRc;
-			endFiles[xs(hashBeginRc)%nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
+			endFiles[xs(hashBeginRc)%arg.nbFiles]<<beginRc;
+			endFiles[xs(hashBeginRc)%arg.nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
 		}
 
-		end=unitig.substr(unitig.size()-kmerSize,kmerSize);
+		end=unitig.substr(unitig.size()-arg.kmerSize,arg.kmerSize);
 		endRc=revComp(end);
 		hashEnd=str2num(end);
 		hashEndRc=str2num(endRc);
 
 		if(hashEnd<=hashEndRc){
-			endFiles[xs(hashEnd)%nbFiles]<<end;
-			endFiles[xs(hashEnd)%nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
+			endFiles[xs(hashEnd)%arg.nbFiles]<<end;
+			endFiles[xs(hashEnd)%arg.nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
 		}else{
-			beginFiles[xs(hashEndRc)%nbFiles]<<endRc;
-			beginFiles[xs(hashEndRc)%nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
+			beginFiles[xs(hashEndRc)%arg.nbFiles]<<endRc;
+			beginFiles[xs(hashEndRc)%arg.nbFiles].write(reinterpret_cast<const char*>(&unitigIndice), 4);
 		}
 		++unitigIndice;
 	}
-	if(unitigThreshold==0){
+	if(arg.unitigThreshold==0){
 		uint prev(0);
 		for(uint i(1);i< abundance_unitigs.size(); ++i){
 			cout<<abundance_unitigs[i]<<endl;
 			if(prev!=0){
 				if(abundance_unitigs[i]>=prev){
-					unitigThreshold=i-1;
-					cout<<"	Unitig threshold chosed: "<<unitigThreshold<<" "<<endl;
+					arg.unitigThreshold=i-1;
+					cout<<"	Unitig threshold chosed: "<<arg.unitigThreshold<<" "<<endl;
 					break;
 				}
 				prev=abundance_unitigs[i];
@@ -386,7 +397,7 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 			}
 		}
 		for(uint i(0);i<unitigs.size();++i){
-			if(coverages[i]<unitigThreshold){
+			if(coverages[i]<arg.unitigThreshold){
 				unitigs[i]={};
 			}else{
 				break;
@@ -398,200 +409,209 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 	vector<bool> isaTipR(unitigs.size(),false);
 
 
-
-	cout<<"\tTipping"<<endl;
-	//TIPPING
-	//FOREACH FILE
-	uint passNumber(1);
-	if(ratioCoverage>0){
-		passNumber=2;
-	}
-	for(uint iPass(0);iPass<passNumber;++iPass){
-	#pragma omp parallel for num_threads(coreUsed)
-	for(uint i=0; i< nbFiles; ++i){
-		string content,wordSeq,wordInt,seqBegin,seqEnd;
-		vector<pair<string,uint32_t>> beginVector,endVector;
-		uint32_t numberRead;
-		uint sizeFileBegin(beginFiles[i].tellg());
-		beginFiles[i].seekg(0,ios::beg);
-		content.resize(sizeFileBegin);
-		beginFiles[i].read(&content[0], content.size());
-		for(uint ii(0); ii<content.size(); ){
-			wordSeq=content.substr(ii,kmerSize);
-			wordInt=content.substr(ii+kmerSize,4);
-			memcpy(&numberRead,wordInt.c_str(),4);
-			beginVector.push_back({wordSeq,numberRead});
-			ii+=kmerSize+4;
+	if(arg.unitigThreshold==1){
+		cout<<"\tTipping"<<endl;
+		//TIPPING
+		//FOREACH FILE
+		uint passNumber(1);
+		if(arg.ratioCoverage>0){
+			passNumber=2;
 		}
+		for(uint iPass(0);iPass<passNumber;++iPass){
+			#pragma omp parallel for num_threads(arg.coreUsed)
+			for(uint i=0; i< arg.nbFiles; ++i){
+				string content,wordSeq,wordInt,seqBegin,seqEnd;
+				vector<pair<string,uint32_t>> beginVector,endVector;
+				uint32_t numberRead;
+				uint sizeFileBegin(beginFiles[i].tellg());
+				beginFiles[i].seekg(0,ios::beg);
+				content.resize(sizeFileBegin);
+				beginFiles[i].read(&content[0], content.size());
+				for(uint ii(0); ii<content.size(); ){
+					wordSeq=content.substr(ii,arg.kmerSize);
+					wordInt=content.substr(ii+arg.kmerSize,4);
+					memcpy(&numberRead,wordInt.c_str(),4);
+					beginVector.push_back({wordSeq,numberRead});
+					ii+=arg.kmerSize+4;
+				}
 
-		uint sizeFileEnd(endFiles[i].tellg());
-		endFiles[i].seekg(0,ios::beg);
-		content.resize(sizeFileEnd);
-		endFiles[i].read(&content[0], content.size());
-		for(uint ii(0); ii<content.size(); ){
-			wordSeq=content.substr(ii,kmerSize);
-			wordInt=content.substr(ii+kmerSize,4);
-			memcpy(&numberRead,wordInt.c_str(),4);
-			endVector.push_back({wordSeq,numberRead});
-			ii+=kmerSize+4;
-		}
-		//~ cout<<"gosort"<<endl;
-		sort(beginVector.begin(), beginVector.end());
-		sort(endVector.begin(), endVector.end());
-		uint indiceBegin(0), indiceEnd(0);
-		vector<pair<uint,uint>> coverageComparison;
-		while( not(indiceBegin==beginVector.size() and indiceEnd==endVector.size())){
-			if(indiceBegin==beginVector.size()){
-				seqBegin="Z";
-			}else{
-				seqBegin=beginVector[indiceBegin].first;
-			}
-			if(indiceEnd==endVector.size()){
-				seqEnd="Z";
-			}else{
-				seqEnd=endVector[indiceEnd].first;
-			}
-			if(seqBegin==seqEnd){
-				coverageComparison={};
-				//if two begin and one is ten time larger remove the lower
-				while(seqBegin==beginVector[indiceBegin].first){
-					if(ratioCoverage>0){
-						if(unitigs[beginVector[indiceBegin].second].size()!=0){
-							coverageComparison.push_back({coverages[beginVector[indiceBegin].second], abs(beginVector[indiceBegin].second)});
-						}
-					}
-					++indiceBegin;
+				uint sizeFileEnd(endFiles[i].tellg());
+				endFiles[i].seekg(0,ios::beg);
+				content.resize(sizeFileEnd);
+				endFiles[i].read(&content[0], content.size());
+				for(uint ii(0); ii<content.size(); ){
+					wordSeq=content.substr(ii,arg.kmerSize);
+					wordInt=content.substr(ii+arg.kmerSize,4);
+					memcpy(&numberRead,wordInt.c_str(),4);
+					endVector.push_back({wordSeq,numberRead});
+					ii+=arg.kmerSize+4;
+				}
+				//~ cout<<"gosort"<<endl;
+				sort(beginVector.begin(), beginVector.end());
+				sort(endVector.begin(), endVector.end());
+				uint indiceBegin(0), indiceEnd(0);
+				vector<pair<uint,uint>> coverageComparison;
+				while( not(indiceBegin==beginVector.size() and indiceEnd==endVector.size())){
 					if(indiceBegin==beginVector.size()){
-						break;
+						seqBegin="Z";
+					}else{
+						seqBegin=beginVector[indiceBegin].first;
 					}
-				}
-
-				if(coverageComparison.size()>0){
-					sort(coverageComparison.begin(),coverageComparison.end());
-					for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
-						if(isaTip[coverageComparison[iComp].second]){
-							//~ cout<<ratioCoverage*coverageComparison[iComp].first<<" "<<coverageComparison[coverageComparison.size()-1].first<<endl;
-							//~ cout<<"wtf"<<coverageComparison[iComp].second<<" "<<unitigs.size()<<endl;
-							if(ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first){
-								#pragma omp critical(dataupdate)
-								{
-									unitigs[coverageComparison[iComp].second]={};
-									advanced_tipping++;
-								}
-							}
-						}else{
-							if(coverageComparison.size()==2){
-							if(ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<5){
-								string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
-								string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
-								if(lowB.substr(lowB.size()-kmerSize)==highB.substr(highB.size()-kmerSize)){
-									unitigs[coverageComparison[iComp].second]={};
-									bulles++;
-								}
-							}
-						}
-						}
-
-					}
-				}
-
-				coverageComparison={};
-				while(seqEnd==endVector[indiceEnd].first){
-					if(ratioCoverage>0){
-						if(unitigs[endVector[indiceEnd].second].size()!=0){
-							coverageComparison.push_back({coverages[endVector[indiceEnd].second],abs(endVector[indiceEnd].second)});
-						}
-					}
-					++indiceEnd;
 					if(indiceEnd==endVector.size()){
-						break;
+						seqEnd="Z";
+					}else{
+						seqEnd=endVector[indiceEnd].first;
 					}
-				}
-
-				if(coverageComparison.size()>0){
-					sort(coverageComparison.begin(),coverageComparison.end());
-					for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
-						if(isaTip[coverageComparison[iComp].second]){
-							if(ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first){
-								#pragma omp critical(dataupdate)
-								{
-									unitigs[coverageComparison[iComp].second]={};
-									advanced_tipping++;
+					if(seqBegin==seqEnd){
+						coverageComparison={};
+						//if two begin and one is ten time larger remove the lower
+						while(seqBegin==beginVector[indiceBegin].first){
+							if(arg.ratioCoverage>0){
+								if(unitigs[beginVector[indiceBegin].second].size()!=0){
+									coverageComparison.push_back({coverages[beginVector[indiceBegin].second], abs(beginVector[indiceBegin].second)});
 								}
 							}
-						}else{
-							if(coverageComparison.size()==2){
-								if(ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<5 ){
-									string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
-									string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
-									if(lowB.substr(lowB.size()-kmerSize)==highB.substr(highB.size()-kmerSize)){
-										unitigs[coverageComparison[iComp].second]={};
-										bulles++;
+							++indiceBegin;
+							if(indiceBegin==beginVector.size()){
+								break;
+							}
+						}
+
+						if(coverageComparison.size()>0){
+							sort(coverageComparison.begin(),coverageComparison.end());
+							for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
+								//TIP WITH LOW RELATIVE COVERAGE
+								if(isaTip[coverageComparison[iComp].second]){
+									if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first){
+										#pragma omp critical(dataupdate)
+										{
+											unitigs[coverageComparison[iComp].second]={};
+											advanced_tipping++;
+										}
+									}
+								}else{
+									// DIPLOID BULLES with low relative coverage and low coverage
+									if(coverageComparison.size()==2){
+									if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min){
+										string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
+										string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
+										if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
+											unitigs[coverageComparison[iComp].second]={};
+											bulles++;
+										}
+									}
+								}
+								}
+
+							}
+						}
+
+						coverageComparison={};
+						while(seqEnd==endVector[indiceEnd].first){
+							if(arg.ratioCoverage>0){
+								if(unitigs[endVector[indiceEnd].second].size()!=0){
+									coverageComparison.push_back({coverages[endVector[indiceEnd].second],abs(endVector[indiceEnd].second)});
+								}
+							}
+							++indiceEnd;
+							if(indiceEnd==endVector.size()){
+								break;
+							}
+						}
+
+						if(coverageComparison.size()>0){
+							sort(coverageComparison.begin(),coverageComparison.end());
+							for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
+								//TIP WITH LOW RELATIVE COVERAGE
+								if(isaTip[coverageComparison[iComp].second]){
+									if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first){
+										#pragma omp critical(dataupdate)
+										{
+											unitigs[coverageComparison[iComp].second]={};
+											advanced_tipping++;
+										}
+									}
+								}else{
+									//ONLY DIPLOID BULLES with low relative coverage and low coverage
+									if(coverageComparison.size()==2){
+										if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min ){
+											string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
+											string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
+											if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
+												unitigs[coverageComparison[iComp].second]={};
+												bulles++;
+											}
+										}
+									}
+								}
+
+							}
+						}
+					}
+					//~ cout<<"golop2"<<endl;
+					if(seqBegin<seqEnd){
+						while(seqBegin==beginVector[indiceBegin].first){
+							//TIP WITH LOW COVERAGE
+							if(unitigs[beginVector[indiceBegin].second].size()<arg.tipingSize and unitigs[beginVector[indiceBegin].second].size()>0 and abundance_unitigs[beginVector[indiceBegin].second]<arg.low_coverage_min){
+								#pragma omp critical(dataupdate)
+								{
+									++tiping;
+									unitigs[beginVector[indiceBegin].second]={};
+								}
+							}else{
+								if(unitigs[beginVector[indiceBegin].second].size()<arg.tipingSize){
+									isaTip[beginVector[indiceBegin].second]=true;
+									isaTipR[beginVector[indiceBegin].second]=true;
+								 }
+								//ISLAND
+								if(isaTipL[beginVector[indiceBegin].second]){
+									#pragma omp critical(dataupdate)
+									{
+										unitigs[beginVector[indiceBegin].second]={};
+										island++;
 									}
 								}
 							}
-						}
-
-					}
-				}
-			}
-			//~ cout<<"golop2"<<endl;
-			if(seqBegin<seqEnd){
-				while(seqBegin==beginVector[indiceBegin].first){
-
-					if(unitigs[beginVector[indiceBegin].second].size()<tipingSize and unitigs[beginVector[indiceBegin].second].size()>0 and abundance_unitigs[beginVector[indiceBegin].second]<4){
-						#pragma omp critical(dataupdate)
-						{
-							++tiping;
-							unitigs[beginVector[indiceBegin].second]={};
-						}
-					}else{
-						isaTip[beginVector[indiceBegin].second]=true;
-						isaTipR[beginVector[indiceBegin].second]=true;
-						if(isaTipL[beginVector[indiceBegin].second]){
-							#pragma omp critical(dataupdate)
-							{
-								unitigs[beginVector[indiceBegin].second]={};
-								island++;
+							++indiceBegin;
+							if(indiceBegin==beginVector.size()){
+								break;
 							}
 						}
+						continue;
 					}
-					++indiceBegin;
-					if(indiceBegin==beginVector.size()){
-						break;
-					}
-				}
-				continue;
-			}
-			//~ cout<<"golopp3"<<endl;
-			if(seqBegin>seqEnd){
-				while(seqEnd==endVector[indiceEnd].first){
-					if(unitigs[endVector[indiceEnd].second].size()<tipingSize and unitigs[endVector[indiceEnd].second].size()>0 and abundance_unitigs[endVector[indiceEnd].second]<4){
-						#pragma omp critical(dataupdate)
-						{
-							++tiping;
-							unitigs[endVector[indiceEnd].second]={};
-						}
-					}else{
-						isaTip[endVector[indiceEnd].second]=true;
-						isaTipR[endVector[indiceEnd].second]=true;
-						if(isaTipR[endVector[indiceEnd].second]){
-							#pragma omp critical(dataupdate)
-							{
-								unitigs[endVector[indiceEnd].second]={};
-								island++;
+					if(seqBegin>seqEnd){
+						while(seqEnd==endVector[indiceEnd].first){
+							//TIP WITH LOW COVERAGE
+							if(unitigs[endVector[indiceEnd].second].size()<arg.tipingSize and unitigs[endVector[indiceEnd].second].size()>0 and abundance_unitigs[endVector[indiceEnd].second]<arg.low_coverage_min){
+								#pragma omp critical(dataupdate)
+								{
+									++tiping;
+									unitigs[endVector[indiceEnd].second]={};
+								}
+							}else{
+								if(unitigs[endVector[indiceEnd].second].size()<arg.tipingSize){
+									isaTip[endVector[indiceEnd].second]=true;
+									isaTipL[endVector[indiceEnd].second]=true;
+								}
+								//ISLAND
+								if(isaTipR[endVector[indiceEnd].second]){
+									#pragma omp critical(dataupdate)
+									{
+										unitigs[endVector[indiceEnd].second]={};
+										island++;
+									}
+								}
+							}
+							++indiceEnd;
+							if(indiceEnd==endVector.size()){
+								break;
 							}
 						}
-					}
-					++indiceEnd;
-					if(indiceEnd==endVector.size()){
-						break;
+						continue;
 					}
 				}
-				continue;
 			}
 		}
-	}
 	}
 
 
@@ -599,7 +619,7 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 	cout<<"\tRecompaction"<<endl;
 	//RECOMPACTION
 	#pragma omp parallel for num_threads(1)
-	for(uint i=0; i< nbFiles; ++i){
+	for(uint i=0; i< arg.nbFiles; ++i){
 		string content,wordSeq,wordInt,seqBegin,seqEnd,str1,str2,compacted;
 		vector<pair<string,uint32_t>> beginVector,endVector;
 		uint numberRead;
@@ -608,27 +628,27 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 		content.resize(sizeFileBegin);
 		beginFiles[i].read(&content[0], content.size());
 		for(uint ii(0); ii<content.size(); ){
-			wordSeq=content.substr(ii,kmerSize);
-			wordInt=content.substr(ii+kmerSize,4);
+			wordSeq=content.substr(ii,arg.kmerSize);
+			wordInt=content.substr(ii+arg.kmerSize,4);
 			memcpy(&numberRead,wordInt.c_str(),4);
 			if(not unitigs[numberRead].empty()){
 				beginVector.push_back({wordSeq,numberRead});
 			}else{
 			}
-			ii+=kmerSize+4;
+			ii+=arg.kmerSize+4;
 		}
 		uint sizeFileEnd(endFiles[i].tellg());
 		endFiles[i].seekg(0,ios::beg);
 		content.resize(sizeFileEnd);
 		endFiles[i].read(&content[0], content.size());
 		for(uint ii(0); ii<content.size(); ){
-			wordSeq=content.substr(ii,kmerSize);
-			wordInt=content.substr(ii+kmerSize,4);
+			wordSeq=content.substr(ii,arg.kmerSize);
+			wordInt=content.substr(ii+arg.kmerSize,4);
 			memcpy(&numberRead,wordInt.c_str(),4);
 			if(not unitigs[numberRead].empty()){
 				endVector.push_back({wordSeq,numberRead});
 			}
-			ii+=kmerSize+4;
+			ii+=arg.kmerSize+4;
 		}
 		sort(beginVector.begin(), beginVector.end());
 		beginVector=uniqueOnly(beginVector);
@@ -647,9 +667,12 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 					if(position1!=position2){
 						str1=(bool2str(unitigs[position1]));
 						str2=(bool2str(unitigs[position2]));
-						compacted=(compaction(str1,str2,kmerSize));
+						compacted=(compaction(str1,str2,arg.kmerSize));
 						unitigs[position1]=str2bool(compacted);
-						coverages[position1]=(coverages[position1]*(str1.size()-kmerSize+1)+coverages[position2]*(str2.size()-kmerSize+1))/(compacted.size()-kmerSize+1);
+						//~ cout<<str1.size()<<" "<<str2.size()<<" "<<compacted.size()-arg.kmerSize<<" "<<str1.size()+str2.size()-(2*arg.kmerSize)<<" "<<coverages[position1]<<" "<<coverages[position2]<<endl;
+
+						coverages[position1]=((coverages[position1]*(str1.size()-arg.kmerSize))+(coverages[position2]*(str2.size()-arg.kmerSize)))/(str1.size()+str2.size()-2*arg.kmerSize);
+						//~ cout<<coverages[position1]<<endl;cin.get();
 						unitigs[position2]=int2bool(position1);
 						compactions++;
 					}
@@ -673,15 +696,15 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 
 	//OUTPUT
 	for(uint i(0); i<unitigs.size(); ++i){
-		if((not unitigs[i].empty()) and (unitigs[i].size()%2==0) and coverages[i]>=unitigThreshold){
+		if((not unitigs[i].empty()) and (unitigs[i].size()%2==0) and coverages[i]>=arg.unitigThreshold){
 			out<<">km:f:"<<coverages[i]<<"\n";
 			out<<bool2str(unitigs[i])<<'\n';
 		}else{
 			unitigFiltered++;
 		}
 	}
-
-	if(unitigThreshold>1){
+	cout<<"\t..."<<endl;
+	if(arg.unitigThreshold>1){
 		cout<<"\tUnitig filtered: "+intToString(unitigFiltered)<<endl;
 	}
 	cout<<"\tTips removed: "+intToString(tiping)<<endl;
@@ -693,6 +716,7 @@ void cleaning(string outFile, string inputUnitig,int nbFiles,int tipingSize,int 
 	auto endTime=system_clock::now();
     auto waitedFor=endTime-start;
     cout<<"\nCleaned in "<<duration_cast<seconds>(waitedFor).count()<<" seconds"<<endl;
+    return (unitigFiltered+tiping+advanced_tipping+island+bulles);
 }
 
 
@@ -705,69 +729,85 @@ int main(int argc, char ** argv){
 		usage();
 		exit(0);
 	}
-	int unitigThreshold(1);
+	args_btt argument;
+	argument.unitigThreshold=(1);
 	string inputUnitig;
 	//~ ifstream inUnitigs(inputUnitig);
-	uint kmerSize;
-	uint tipingSize(1);
+	argument.tipingSize=(1);
+	argument.kmerSize=(0);
 	uint tipingStep(1);
-	uint coreUsed(1);
+	argument.coreUsed=(1);
 	uint hashSize(8);//256 FILES
-	uint nbFiles(1<<(hashSize-1));
-	uint ratioCoverage(0);
-	uint unitigThreshold_MAX(0);
+	argument.low_coverage_min=5;
+	argument.ratioCoverage=(0);
+	argument.unitigThreshold_MAX=(0);
 	string outFile("out_tipped");
 	char c;
-	while ((c = getopt (argc, argv, "u:k:t:c:h:f:a:o:T:m:")) != -1){
+	while ((c = getopt (argc, argv, "u:k:t:c:h:f:a:o:T:m:l:")) != -1){
 		switch(c){
 		case 'u':
 			inputUnitig=optarg;
 			break;
 		case 'k':
-			kmerSize=stoi(optarg);
-			--kmerSize;
+			argument.kmerSize=stoi(optarg);
+			--argument.kmerSize;
 			break;
 		case 't':
-			tipingSize=2*stoi(optarg);
+			argument.tipingSize=2*stoi(optarg);
 			break;
 		case 'T':
 			tipingStep=stoi(optarg);
 			break;
 		case 'c':
-			coreUsed=stoi(optarg);
+			argument.coreUsed=stoi(optarg);
 			break;
 		case 'h':
 			hashSize=stoi(optarg);
 			break;
 		case 'f':
-			unitigThreshold=stoi(optarg);
+			argument.unitigThreshold=stoi(optarg);
 			break;
 		case 'm':
-			unitigThreshold_MAX=stoi(optarg);
+			argument.unitigThreshold_MAX=stoi(optarg);
 			break;
 		case 'o':
 			outFile=optarg;
 			break;
 		case 'a':
-			ratioCoverage=stoi(optarg);
+			argument.ratioCoverage=stoi(optarg);
+			break;
+		case 'l':
+			argument.low_coverage_min=stoi(optarg);
 			break;
 		}
 	}
+	argument.nbFiles=(1<<(hashSize-1));
+	if(argument.kmerSize==0){
+		cout<<"Please specify a kmer size"<<endl;
+		exit(0);
+	}
+
 	for(uint i(1);i<=tipingStep;++i){
 		cout<<"Step "<<i<<endl;
 		if(i==tipingStep){
-			cleaning( outFile,  inputUnitig, nbFiles, tipingSize, coreUsed, unitigThreshold, ratioCoverage, kmerSize,unitigThreshold_MAX);
+			int res(cleaning( outFile,  inputUnitig, argument));
 			if(i>1){
 				remove((outFile+to_string(i-1)).c_str());
 
 			}
 		}else{
-			cleaning( outFile+to_string(i),  inputUnitig, nbFiles, tipingSize, coreUsed, unitigThreshold, ratioCoverage, kmerSize,unitigThreshold_MAX);
+			int res(cleaning( outFile+to_string(i),  inputUnitig, argument));
+			if(res==0 and i>1){
+				cout<<"nothing left to do I quit"<<endl;
+				rename((outFile+to_string(i)).c_str(),outFile.c_str());
+				return 0;
+			}
 			inputUnitig=outFile+to_string(i);
 			if(i>1){
 				remove((outFile+to_string(i-1)).c_str());
 			}
 		}
+		argument.unitigThreshold=1;
 	}
 
 }
