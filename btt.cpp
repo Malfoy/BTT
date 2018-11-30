@@ -491,16 +491,16 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 									}
 								}else{
 									// DIPLOID BULLES with low relative coverage and low coverage
-									if(coverageComparison.size()==2){
-									if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min){
-										string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
-										string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
-										if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
-											unitigs[coverageComparison[iComp].second]={};
-											bulles++;
-										}
-									}
-								}
+									//~ if(coverageComparison.size()==2){
+										//~ if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min){
+											//~ string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
+											//~ string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
+											//~ if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
+												//~ unitigs[coverageComparison[iComp].second]={};
+												//~ bulles++;
+											//~ }
+										//~ }
+									//~ }
 								}
 
 							}
@@ -533,16 +533,16 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 									}
 								}else{
 									//ONLY DIPLOID BULLES with low relative coverage and low coverage
-									if(coverageComparison.size()==2){
-										if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min ){
-											string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
-											string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
-											if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
-												unitigs[coverageComparison[iComp].second]={};
-												bulles++;
-											}
-										}
-									}
+									//~ if(coverageComparison.size()==2){
+										//~ if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min ){
+											//~ string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
+											//~ string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
+											//~ if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
+												//~ unitigs[coverageComparison[iComp].second]={};
+												//~ bulles++;
+											//~ }
+										//~ }
+									//~ }
 								}
 
 							}
