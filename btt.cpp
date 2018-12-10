@@ -71,6 +71,11 @@ string revComp(const string& s){
 }
 
 
+string get_canon(const string& s){
+	return min(s,revComp(s));
+}
+
+
 
 uint64_t str2num(const string& str){
 	uint64_t res(0);
@@ -283,6 +288,8 @@ double parseCoverage(const string& str){
 	return stof(str.substr(pos+5,i));
 }
 
+
+
 void usage(){
 	cout<<"Usage:"<<endl;
 		cout<<"-u [Unitig file]\n"
@@ -298,6 +305,8 @@ void usage(){
 		<<endl;
 }
 
+
+
 struct args_btt{
 	uint nbFiles;
 	uint coreUsed;
@@ -306,8 +315,68 @@ struct args_btt{
 	uint unitigThreshold_MAX;
 	uint tipingSize;
 	uint ratioCoverage;
-	uint low_coverage_min;
+	uint low_coverage;
+	uint high_coverage;
 };
+
+
+bool parallel_unitigs(const vector<bool>& u1,const vector<bool> u2, uint k){
+	//~ cout<<"go"<<endl;
+	vector<bool> begin1 (u1.begin(), u1.begin()+2*k);
+	vector<bool> begin2(u2.begin(), u2.begin()+2*k);
+	string canon_begin1(get_canon(bool2str(begin1)));
+	string canon_begin2(get_canon(bool2str(begin2)));
+	vector<bool> end1( u1.end()-2*k, u1.end());
+	vector<bool> end2( u2.end()-2*k, u2.end());
+	string canon_end1(get_canon(bool2str(end1)));
+	string canon_end2(get_canon(bool2str(end2)));
+	//~ cout<<bool2str(u1)<<endl;
+	//~ cout<<bool2str(u2)<<endl;
+	//~ cout<<canon_end1<<" "<<canon_end2<<endl;
+	//~ cout<<canon_begin1<<" "<<canon_begin2<<endl;
+	//~ if(((canon_begin1==canon_begin2 or canon_begin1== canon_end2) and (canon_end1==canon_begin2 or canon_end1==canon_end2))){
+		//~ cout<<"SUCCESS"<<endl;
+	//~ }else{
+		//~ cout<<"fAIL"<<endl;
+	//~ }
+	//~ cin.get();
+	return ((canon_begin1==canon_begin2 or canon_begin1== canon_end2) and (canon_end1==canon_begin2 or canon_end1==canon_end2));
+}
+
+bool less_than_n_missmatch(const string& str1, const string& str2, uint max_miss){
+	uint min_size(min(str1.size(),str2.size()));
+	uint miss(0);
+	for(uint i(0);i<min_size;++i){
+		if(str1[i]!=str2[i]){
+			if(++miss>max_miss){
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+
+bool low_sistance_tip(const vector<bool>& Btip,vector<bool>& Bref, const string& overlap){
+	//~ cout<<"go"<<endl;
+	uint k=overlap.size();
+	string tip(bool2str(Btip));
+	if(get_canon(tip.substr(0,k))!=overlap){
+		tip=revComp(tip);
+	}
+	string ref(bool2str(Bref));
+	if(get_canon(ref.substr(0,k))!=overlap){
+		ref=revComp(ref);
+	}
+	//~ cout<<overlap<<endl;
+	//~ cout<<tip<<"\n"<<ref<<endl;cin.get();
+	//~ if(less_than_n_missmatch(tip,ref,2)){
+		//~ cout<<tip<<endl;
+		//~ cout<<ref<<endl;cin.get();
+	//~ }
+	return less_than_n_missmatch(tip,ref,2);
+}
+
 
 
 int cleaning(string outFile, string inputUnitig,args_btt arg){
@@ -404,19 +473,16 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 			}
 		}
 	}
+
+
 	vector<bool> isaTip(unitigs.size(),false);
-	vector<bool> isaTipL(unitigs.size(),false);
-	vector<bool> isaTipR(unitigs.size(),false);
 
 
 	if(arg.unitigThreshold==1){
 		cout<<"\tTipping"<<endl;
 		//TIPPING
 		//FOREACH FILE
-		uint passNumber(1);
-		if(arg.ratioCoverage>0){
-			passNumber=2;
-		}
+		uint passNumber(2);
 		for(uint iPass(0);iPass<passNumber;++iPass){
 			#pragma omp parallel for num_threads(arg.coreUsed)
 			for(uint i=0; i< arg.nbFiles; ++i){
@@ -446,7 +512,6 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 					endVector.push_back({wordSeq,numberRead});
 					ii+=arg.kmerSize+4;
 				}
-				//~ cout<<"gosort"<<endl;
 				sort(beginVector.begin(), beginVector.end());
 				sort(endVector.begin(), endVector.end());
 				uint indiceBegin(0), indiceEnd(0);
@@ -463,12 +528,17 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 						seqEnd=endVector[indiceEnd].first;
 					}
 					if(seqBegin==seqEnd){
+
+						bool potential_crush(false);
 						coverageComparison={};
 						//if two begin and one is ten time larger remove the lower
 						while(seqBegin==beginVector[indiceBegin].first){
 							if(arg.ratioCoverage>0){
 								if(unitigs[beginVector[indiceBegin].second].size()!=0){
 									coverageComparison.push_back({coverages[beginVector[indiceBegin].second], abs(beginVector[indiceBegin].second)});
+									if(coverages[beginVector[indiceBegin].second]<arg.high_coverage){
+										potential_crush=true;
+									}
 								}
 							}
 							++indiceBegin;
@@ -477,40 +547,47 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 							}
 						}
 
-						if(coverageComparison.size()>0){
+						if(potential_crush){
 							sort(coverageComparison.begin(),coverageComparison.end());
+							auto max_coverage(coverageComparison[coverageComparison.size()-1]);
 							for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
-								//TIP WITH LOW RELATIVE COVERAGE
-								if(isaTip[coverageComparison[iComp].second]){
-									if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first){
+								if(passNumber==2){
+									if(isaTip[coverageComparison[iComp].second]){
+										if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[max_coverage.second],seqBegin)){
+											#pragma omp critical(dataupdate)
+											{
+												unitigs[coverageComparison[iComp].second]={};
+												advanced_tipping++;
+											}
+										}
+										continue;
+									}
+								}
+								// LOW RELATIVE COVERAGE
+								if(arg.ratioCoverage*coverageComparison[iComp].first<max_coverage.first  and coverageComparison[iComp].first<arg.high_coverage){
+									//HAS THE SAME BEGIN/END THAN the BIG ONE
+									if(parallel_unitigs(unitigs[max_coverage.second],unitigs[coverageComparison[iComp].second],arg.kmerSize)){
 										#pragma omp critical(dataupdate)
 										{
 											unitigs[coverageComparison[iComp].second]={};
-											advanced_tipping++;
+											bulles++;
 										}
+									}else{
+										island++;
 									}
-								}else{
-									// DIPLOID BULLES with low relative coverage and low coverage
-									//~ if(coverageComparison.size()==2){
-										//~ if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min){
-											//~ string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
-											//~ string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
-											//~ if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
-												//~ unitigs[coverageComparison[iComp].second]={};
-												//~ bulles++;
-											//~ }
-										//~ }
-									//~ }
 								}
-
 							}
 						}
 
+						potential_crush=false;
 						coverageComparison={};
 						while(seqEnd==endVector[indiceEnd].first){
 							if(arg.ratioCoverage>0){
 								if(unitigs[endVector[indiceEnd].second].size()!=0){
 									coverageComparison.push_back({coverages[endVector[indiceEnd].second],abs(endVector[indiceEnd].second)});
+									if(coverages[endVector[indiceEnd].second]<arg.high_coverage){
+										potential_crush=true;
+									}
 								}
 							}
 							++indiceEnd;
@@ -521,54 +598,55 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 
 						if(coverageComparison.size()>0){
 							sort(coverageComparison.begin(),coverageComparison.end());
+							auto max_coverage(coverageComparison[coverageComparison.size()-1]);
 							for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
-								//TIP WITH LOW RELATIVE COVERAGE
-								if(isaTip[coverageComparison[iComp].second]){
-									if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first){
+								if(passNumber==2){
+									if(isaTip[coverageComparison[iComp].second]){
+										if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[max_coverage.second],seqBegin)){
+											#pragma omp critical(dataupdate)
+											{
+												unitigs[coverageComparison[iComp].second]={};
+												advanced_tipping++;
+											}
+										}
+										continue;
+									}
+								}
+								// LOW RELATIVE COVERAGE
+								if(arg.ratioCoverage*coverageComparison[iComp].first<max_coverage.first){
+									//HAS THE SAME BEGIN/END THAN the BIG ONE
+										if(parallel_unitigs(unitigs[max_coverage.second],unitigs[coverageComparison[iComp].second],arg.kmerSize)){
 										#pragma omp critical(dataupdate)
 										{
 											unitigs[coverageComparison[iComp].second]={};
-											advanced_tipping++;
+											bulles++;
 										}
+									}else{
+										island++;
 									}
-								}else{
-									//ONLY DIPLOID BULLES with low relative coverage and low coverage
-									//~ if(coverageComparison.size()==2){
-										//~ if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[coverageComparison.size()-1].first and coverageComparison[iComp].first<arg.low_coverage_min ){
-											//~ string lowB(bool2str(unitigs[coverageComparison[iComp].second]));
-											//~ string highB(bool2str(unitigs[coverageComparison[coverageComparison.size()-1].second]));
-											//~ if(lowB.substr(lowB.size()-arg.kmerSize)==highB.substr(highB.size()-arg.kmerSize)){
-												//~ unitigs[coverageComparison[iComp].second]={};
-												//~ bulles++;
-											//~ }
-										//~ }
-									//~ }
 								}
-
 							}
 						}
 					}
-					//~ cout<<"golop2"<<endl;
 					if(seqBegin<seqEnd){
 						while(seqBegin==beginVector[indiceBegin].first){
-							//TIP WITH LOW COVERAGE
-							if(unitigs[beginVector[indiceBegin].second].size()<arg.tipingSize and unitigs[beginVector[indiceBegin].second].size()>0 and abundance_unitigs[beginVector[indiceBegin].second]<arg.low_coverage_min){
-								#pragma omp critical(dataupdate)
-								{
-									++tiping;
-									unitigs[beginVector[indiceBegin].second]={};
-								}
-							}else{
-								if(unitigs[beginVector[indiceBegin].second].size()<arg.tipingSize){
-									isaTip[beginVector[indiceBegin].second]=true;
-									isaTipR[beginVector[indiceBegin].second]=true;
-								 }
-								//ISLAND
-								if(isaTipL[beginVector[indiceBegin].second]){
+							//TIP
+							if(unitigs[beginVector[indiceBegin].second].size()<arg.tipingSize and unitigs[beginVector[indiceBegin].second].size()>0){
+								//TIP WITH LOW COVERAGE
+								if(coverages[beginVector[indiceBegin].second]<arg.low_coverage){
 									#pragma omp critical(dataupdate)
 									{
+										++tiping;
 										unitigs[beginVector[indiceBegin].second]={};
-										island++;
+									}
+								}else{
+									//TIP BELOW THE SAVING THESHOLD
+									if(coverages[beginVector[indiceBegin].second]<arg.high_coverage){
+										//TIP CHECK low distance
+										#pragma omp critical(TL)
+										{
+											isaTip[beginVector[indiceBegin].second]=true;
+										}
 									}
 								}
 							}
@@ -581,26 +659,27 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 					}
 					if(seqBegin>seqEnd){
 						while(seqEnd==endVector[indiceEnd].first){
-							//TIP WITH LOW COVERAGE
-							if(unitigs[endVector[indiceEnd].second].size()<arg.tipingSize and unitigs[endVector[indiceEnd].second].size()>0 and abundance_unitigs[endVector[indiceEnd].second]<arg.low_coverage_min){
-								#pragma omp critical(dataupdate)
-								{
-									++tiping;
-									unitigs[endVector[indiceEnd].second]={};
-								}
-							}else{
-								if(unitigs[endVector[indiceEnd].second].size()<arg.tipingSize){
-									isaTip[endVector[indiceEnd].second]=true;
-									isaTipL[endVector[indiceEnd].second]=true;
-								}
-								//ISLAND
-								if(isaTipR[endVector[indiceEnd].second]){
+							//TIP
+							if(unitigs[endVector[indiceEnd].second].size()<arg.tipingSize and unitigs[endVector[indiceEnd].second].size()>0){
+								//TIP WITH LOW COVERAGE
+								if(coverages[endVector[indiceEnd].second]<arg.low_coverage){
+									//~ cout<<coverages[endVector[indiceEnd].second]<<" "<<arg.low_coverage<<endl;cin.get();
 									#pragma omp critical(dataupdate)
 									{
+										++tiping;
 										unitigs[endVector[indiceEnd].second]={};
-										island++;
+									}
+								}else{
+									//TIP BELOW THE SAVING THESHOLD
+									if(coverages[endVector[indiceEnd].second]<arg.high_coverage){
+										//TIP CHECK low distance
+										#pragma omp critical(TL)
+										{
+											isaTip[endVector[indiceEnd].second]=true;
+										}
 									}
 								}
+
 							}
 							++indiceEnd;
 							if(indiceEnd==endVector.size()){
@@ -735,15 +814,16 @@ int main(int argc, char ** argv){
 	//~ ifstream inUnitigs(inputUnitig);
 	argument.tipingSize=(1);
 	argument.kmerSize=(0);
-	uint tipingStep(1);
+	uint tipingStep(3);
 	argument.coreUsed=(1);
 	uint hashSize(8);//256 FILES
-	argument.low_coverage_min=5;
-	argument.ratioCoverage=(0);
+	argument.low_coverage=5;
+	argument.ratioCoverage=(10);
 	argument.unitigThreshold_MAX=(0);
+	argument.high_coverage=10;
 	string outFile("out_tipped");
 	char c;
-	while ((c = getopt (argc, argv, "u:k:t:c:h:f:a:o:T:m:l:")) != -1){
+	while ((c = getopt (argc, argv, "u:k:t:c:h:f:a:o:T:m:l:L:")) != -1){
 		switch(c){
 		case 'u':
 			inputUnitig=optarg;
@@ -777,7 +857,10 @@ int main(int argc, char ** argv){
 			argument.ratioCoverage=stoi(optarg);
 			break;
 		case 'l':
-			argument.low_coverage_min=stoi(optarg);
+			argument.low_coverage=stoi(optarg);
+			break;
+		case 'L':
+			argument.high_coverage=stoi(optarg);
 			break;
 		}
 	}
