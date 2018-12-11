@@ -301,6 +301,8 @@ void usage(){
 		<<"-f [Unitig min coverage (none, 0 for auto)]\n"
 		<<"-m [Unitig max coverage (none)]\n"
 		<<"-a [Edge filtering ratio (none)]\n"
+		<<"-l low coverage\n"
+		<<"-l high coverage\n"
 		<<"-o [Output file (out_tipped)]\n"
 		<<endl;
 }
@@ -321,6 +323,9 @@ struct args_btt{
 
 
 bool parallel_unitigs(const vector<bool>& u1,const vector<bool> u2, uint k){
+	if(u1.size()!=u2.size()){
+		return false;
+	}
 	//~ cout<<"go"<<endl;
 	vector<bool> begin1 (u1.begin(), u1.begin()+2*k);
 	vector<bool> begin2(u2.begin(), u2.begin()+2*k);
@@ -330,16 +335,16 @@ bool parallel_unitigs(const vector<bool>& u1,const vector<bool> u2, uint k){
 	vector<bool> end2( u2.end()-2*k, u2.end());
 	string canon_end1(get_canon(bool2str(end1)));
 	string canon_end2(get_canon(bool2str(end2)));
-	//~ cout<<bool2str(u1)<<endl;
-	//~ cout<<bool2str(u2)<<endl;
-	//~ cout<<canon_end1<<" "<<canon_end2<<endl;
-	//~ cout<<canon_begin1<<" "<<canon_begin2<<endl;
-	//~ if(((canon_begin1==canon_begin2 or canon_begin1== canon_end2) and (canon_end1==canon_begin2 or canon_end1==canon_end2))){
-		//~ cout<<"SUCCESS"<<endl;
-	//~ }else{
-		//~ cout<<"fAIL"<<endl;
+	//~ if(not ((canon_begin1==canon_begin2 or canon_begin1== canon_end2) and (canon_end1==canon_begin2 or canon_end1==canon_end2))){
+		//~ cout<<bool2str(u1)<<endl;
+		//~ cout<<bool2str(u2)<<endl;
+		//~ cout<<canon_end1<<" "<<canon_end2<<endl;
+		//~ cout<<canon_begin1<<" "<<canon_begin2<<endl;
+
+			//~ cout<<"fAIL"<<endl;
+
+		//~ cin.get();
 	//~ }
-	//~ cin.get();
 	return ((canon_begin1==canon_begin2 or canon_begin1== canon_end2) and (canon_end1==canon_begin2 or canon_end1==canon_end2));
 }
 
@@ -573,7 +578,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 											bulles++;
 										}
 									}else{
-										island++;
+										//~ island++;
 									}
 								}
 							}
@@ -596,7 +601,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 							}
 						}
 
-						if(coverageComparison.size()>0){
+						if(potential_crush){
 							sort(coverageComparison.begin(),coverageComparison.end());
 							auto max_coverage(coverageComparison[coverageComparison.size()-1]);
 							for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
@@ -622,7 +627,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 											bulles++;
 										}
 									}else{
-										island++;
+										//~ island++;
 									}
 								}
 							}
