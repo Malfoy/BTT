@@ -379,7 +379,7 @@ bool low_sistance_tip(const vector<bool>& Btip,vector<bool>& Bref, const string&
 		//~ cout<<tip<<endl;
 		//~ cout<<ref<<endl;cin.get();
 	//~ }
-	return less_than_n_missmatch(tip,ref,2);
+	return less_than_n_missmatch(tip,ref,1);
 }
 
 
@@ -553,35 +553,51 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 						}
 
 						if(potential_crush){
-							sort(coverageComparison.begin(),coverageComparison.end());
-							auto max_coverage(coverageComparison[coverageComparison.size()-1]);
-							for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
-								if(passNumber==2){
-									if(isaTip[coverageComparison[iComp].second]){
-										if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[max_coverage.second],seqBegin)){
-											#pragma omp critical(dataupdate)
-											{
+
+							for(uint iComp(0);iComp<coverageComparison.size();++iComp){
+								for(uint iComp2(0);iComp2<coverageComparison.size();++iComp2){
+									if(iComp!=iComp2  and not unitigs[coverageComparison[iComp].second].empty() and not unitigs[coverageComparison[iComp2].second].empty()){
+										if(arg.ratioCoverage*coverageComparison[iComp].first < coverageComparison[iComp2].first and coverageComparison[iComp].first < arg.high_coverage){
+											if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[coverageComparison[iComp2].second],seqBegin)){
 												unitigs[coverageComparison[iComp].second]={};
 												advanced_tipping++;
 											}
 										}
-										continue;
-									}
-								}
-								// LOW RELATIVE COVERAGE
-								if(arg.ratioCoverage*coverageComparison[iComp].first<max_coverage.first  and coverageComparison[iComp].first<arg.high_coverage){
-									//HAS THE SAME BEGIN/END THAN the BIG ONE
-									if(parallel_unitigs(unitigs[max_coverage.second],unitigs[coverageComparison[iComp].second],arg.kmerSize)){
-										#pragma omp critical(dataupdate)
-										{
-											unitigs[coverageComparison[iComp].second]={};
-											bulles++;
-										}
-									}else{
-										//~ island++;
 									}
 								}
 							}
+
+
+
+
+							//~ sort(coverageComparison.begin(),coverageComparison.end());
+							//~ auto max_coverage(coverageComparison[coverageComparison.size()-1]);
+							//~ for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
+								//~ if(passNumber==2){
+									//~ if(isaTip[coverageComparison[iComp].second]){
+										//~ if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[max_coverage.second],seqBegin)){
+											//~ #pragma omp critical(dataupdate)
+											//~ {
+												//~ unitigs[coverageComparison[iComp].second]={};
+												//~ advanced_tipping++;
+											//~ }
+										//~ }
+										//~ continue;
+									//~ }
+								//~ }
+								//~ // LOW RELATIVE COVERAGE
+								//~ if(arg.ratioCoverage*coverageComparison[iComp].first<max_coverage.first  and coverageComparison[iComp].first<arg.high_coverage){
+									//~ //HAS THE SAME BEGIN/END THAN the BIG ONE
+									//~ if(parallel_unitigs(unitigs[max_coverage.second],unitigs[coverageComparison[iComp].second],arg.kmerSize)){
+										//~ #pragma omp critical(dataupdate)
+										//~ {
+											//~ unitigs[coverageComparison[iComp].second]={};
+											//~ bulles++;
+										//~ }
+									//~ }else{
+									//~ }
+								//~ }
+							//~ }
 						}
 
 						potential_crush=false;
@@ -602,35 +618,48 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 						}
 
 						if(potential_crush){
-							sort(coverageComparison.begin(),coverageComparison.end());
-							auto max_coverage(coverageComparison[coverageComparison.size()-1]);
-							for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
-								if(passNumber==2){
-									if(isaTip[coverageComparison[iComp].second]){
-										if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[max_coverage.second],seqBegin)){
-											#pragma omp critical(dataupdate)
-											{
-												unitigs[coverageComparison[iComp].second]={};
-												advanced_tipping++;
-											}
-										}
-										continue;
-									}
-								}
-								// LOW RELATIVE COVERAGE
-								if(arg.ratioCoverage*coverageComparison[iComp].first<max_coverage.first){
-									//HAS THE SAME BEGIN/END THAN the BIG ONE
-										if(parallel_unitigs(unitigs[max_coverage.second],unitigs[coverageComparison[iComp].second],arg.kmerSize)){
-										#pragma omp critical(dataupdate)
-										{
+
+							for(uint iComp(0);iComp<coverageComparison.size();++iComp){
+								for(uint iComp2(0);iComp2<coverageComparison.size();++iComp2){
+									if(iComp!=iComp2  and not unitigs[coverageComparison[iComp].second].empty() and not unitigs[coverageComparison[iComp2].second].empty())
+									if(arg.ratioCoverage*coverageComparison[iComp].first<coverageComparison[iComp2].first and coverageComparison[iComp].first<arg.high_coverage){
+										if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[coverageComparison[iComp2].second],seqEnd)){
 											unitigs[coverageComparison[iComp].second]={};
-											bulles++;
+											advanced_tipping++;
 										}
-									}else{
-										//~ island++;
 									}
 								}
 							}
+
+
+							//~ sort(coverageComparison.begin(),coverageComparison.end());
+							//~ auto max_coverage(coverageComparison[coverageComparison.size()-1]);
+							//~ for(uint iComp(0);iComp<coverageComparison.size()-1;++iComp){
+								//~ if(passNumber==2){
+									//~ if(isaTip[coverageComparison[iComp].second]){
+										//~ if(low_sistance_tip(unitigs[coverageComparison[iComp].second],unitigs[max_coverage.second],seqBegin)){
+											//~ #pragma omp critical(dataupdate)
+											//~ {
+												//~ unitigs[coverageComparison[iComp].second]={};
+												//~ advanced_tipping++;
+											//~ }
+										//~ }
+										//~ continue;
+									//~ }
+								//~ }
+								//~ // LOW RELATIVE COVERAGE
+								//~ if(arg.ratioCoverage*coverageComparison[iComp].first<max_coverage.first){
+									//~ //HAS THE SAME BEGIN/END THAN the BIG ONE
+										//~ if(parallel_unitigs(unitigs[max_coverage.second],unitigs[coverageComparison[iComp].second],arg.kmerSize)){
+										//~ #pragma omp critical(dataupdate)
+										//~ {
+											//~ unitigs[coverageComparison[iComp].second]={};
+											//~ bulles++;
+										//~ }
+									//~ }else{
+									//~ }
+								//~ }
+							//~ }
 						}
 					}
 					if(seqBegin<seqEnd){
@@ -668,7 +697,6 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 							if(unitigs[endVector[indiceEnd].second].size()<arg.tipingSize and unitigs[endVector[indiceEnd].second].size()>0){
 								//TIP WITH LOW COVERAGE
 								if(coverages[endVector[indiceEnd].second]<arg.low_coverage){
-									//~ cout<<coverages[endVector[indiceEnd].second]<<" "<<arg.low_coverage<<endl;cin.get();
 									#pragma omp critical(dataupdate)
 									{
 										++tiping;
@@ -753,10 +781,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 						str2=(bool2str(unitigs[position2]));
 						compacted=(compaction(str1,str2,arg.kmerSize));
 						unitigs[position1]=str2bool(compacted);
-						//~ cout<<str1.size()<<" "<<str2.size()<<" "<<compacted.size()-arg.kmerSize<<" "<<str1.size()+str2.size()-(2*arg.kmerSize)<<" "<<coverages[position1]<<" "<<coverages[position2]<<endl;
-
 						coverages[position1]=((coverages[position1]*(str1.size()-arg.kmerSize))+(coverages[position2]*(str2.size()-arg.kmerSize)))/(str1.size()+str2.size()-2*arg.kmerSize);
-						//~ cout<<coverages[position1]<<endl;cin.get();
 						unitigs[position2]=int2bool(position1);
 						compactions++;
 					}
