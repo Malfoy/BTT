@@ -912,6 +912,7 @@ int main(int argc, char ** argv){
 			int res(cleaning( outFile+to_string(i),  inputUnitig, argument));
 			if(res==0 and i>1){
 				cout<<"nothing left to do I quit"<<endl;
+				remove((outFile+to_string(i-1)).c_str());
 				rename((outFile+to_string(i)).c_str(),outFile.c_str());
 				return 0;
 			}
