@@ -540,7 +540,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 						while(seqBegin==beginVector[indiceBegin].first){
 							if(arg.ratioCoverage>0){
 								if(unitigs[beginVector[indiceBegin].second].size()!=0){
-									coverageComparison.push_back(make_pair(coverages[beginVector[indiceBegin].second], abs(beginVector[indiceBegin].second)));
+									coverageComparison.push_back(make_pair(coverages[beginVector[indiceBegin].second], (beginVector[indiceBegin].second)));
 									if(coverages[beginVector[indiceBegin].second]<arg.high_coverage){
 										potential_crush=true;
 									}
@@ -605,7 +605,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 						while(seqEnd==endVector[indiceEnd].first){
 							if(arg.ratioCoverage>0){
 								if(unitigs[endVector[indiceEnd].second].size()!=0){
-									coverageComparison.push_back(make_pair(coverages[endVector[indiceEnd].second],abs(endVector[indiceEnd].second)));
+									coverageComparison.push_back(make_pair(coverages[endVector[indiceEnd].second],(endVector[indiceEnd].second)));
 									if(coverages[endVector[indiceEnd].second]<arg.high_coverage){
 										potential_crush=true;
 									}
