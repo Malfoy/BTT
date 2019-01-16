@@ -392,8 +392,8 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 	ifstream inUnitigs(inputUnitig);
 	vector<fstream> beginFiles(arg.nbFiles),endFiles(arg.nbFiles);
 	for(uint i(0); i< arg.nbFiles; ++i){
-		beginFiles[i].open(".begin"+to_string(i),fstream::out|fstream::in|fstream::binary|fstream::trunc);
-		endFiles[i].open(".end"+to_string(i),fstream::out|fstream::in|fstream::binary|fstream::trunc);
+		beginFiles[i].open("."+outFile+"_begin"+to_string(i),fstream::out|fstream::in|fstream::binary|fstream::trunc);
+		endFiles[i].open("."+outFile+"_end"+to_string(i),fstream::out|fstream::in|fstream::binary|fstream::trunc);
 	}
 	//THIS MEMORY USAGE CAN BE REMOVED
 	vector<vector<bool>> unitigs;
