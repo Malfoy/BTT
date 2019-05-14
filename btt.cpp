@@ -391,11 +391,12 @@ int binomialCoeff(int k, int n)
 
 
 
-bool probaclean(vector<bool> U1,vector<bool> U2, uint C1, uint C2,uint d){
-	double Pg1(pow(0.01,d*C2));
-	double Pg2(pow(0.99,C2)*pow(C1/(C1+C2),C1)*pow(C2/(C1+C2),C2));
-	return Pg1>2*Pg2;
+bool probaclean(vector<bool> U1,vector<bool> U2, double C1, double C2, double d){
+        double Pg1(pow(0.02,d*C2));
+        double Pg2(pow(0.98,d*C2)*pow(C1/(C1+C2),C1)*pow(C2/(C1+C2),C2));
+        return Pg1>Pg2;
 }
+
 
 
 
