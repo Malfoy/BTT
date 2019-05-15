@@ -35,7 +35,7 @@ using namespace chrono;
 
 
 
-double epsilon(0.01);
+double epsilon(0.02);
 double espilon(1-epsilon);
 
 
@@ -399,23 +399,11 @@ uint64_t binomialCoeff(uint64_t k, uint64_t n)
 bool probaclean(vector<bool> U1,vector<bool> U2, double C1, double C2, double d){
 		double S1(U1.size()/2);
 		double S2(U2.size()/2);
-			//~ double pe(pow(0.02,d*C2));
-			//~ double pv(pow(0.98,d*C2)*pow(C1/(C1+C2),C1)*pow(C2/(C1+C2),C2));
-
-			//~ double pe(pow(espilon,(C2+1)*d)*binomialCoeff(C2,C2+C1)*pow(1-pow(espilon,d),C1));
-			//~ double pv(pow(1-espilon,d*(1+C2))*C2/(C1+C2));
 
 		double	pbinom(pow(epsilon,d) * pow(espilon,S2-d));
 
 		double pe( pow(epsilon,d) * pow(espilon,S2-d) * binomialCoeff(C2,C2+C1) * pow(pbinom,C2) * pow(1-pbinom,C1));
 		double pv( pow(espilon,S2) * C2/(C2+C1) * pow(espilon,S2*C2) * C1/(C1+C2) * pow(espilon,S1*C1) );
-
-		//~ if(pv>pe and C1>100*C2){
-			//~ cout<< S2<<" "<<d<<endl;
-			//~ cout <<C1<<" "<<C2<<endl;
-			//~ cout<<pe<<" "<<pv<<endl;
-			//~ cin.get();
-		//~ }
 
 		return pe>pv;
 }
