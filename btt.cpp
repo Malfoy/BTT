@@ -173,28 +173,6 @@ uint32_t xs(uint32_t y){
 
 
 
-char randNucle(char c){
-	switch (rand()%4){
-		case 0:
-			if(c!='A'){
-				return 'A';
-			}
-		case 1:
-			if(c!='C'){
-				return 'C';
-			}
-		case 2:
-			if(c!='G'){
-				return 'G';
-			}
-		case 3:
-			if(c!='T'){
-				return 'T';
-			}
-		default: ;
-	}
-	return randNucle(c);
-}
 
 
 
@@ -396,16 +374,64 @@ uint64_t binomialCoeff(uint64_t k, uint64_t n)
 
 
 
+
+
+
+uint64_t factorial(uint64_t k){
+	uint64_t res(1);
+	for(uint64_t b = 2; b <= k; b++) {
+	  res *= b;
+	}
+	return res;
+}
+
+
+
+double  binomialCoeff_estimation(uint64_t k, uint64_t n){
+	return (pow(n,k)/factorial(k));
+}
+
+
+
+
 bool probaclean(vector<bool> U1,vector<bool> U2, double C1, double C2, double d){
-		double S1(U1.size()/2);
-		double S2(U2.size()/2);
 
-		double	pbinom(pow(epsilon,d) * pow(espilon,S2-d));
+	double alpha(50);
 
-		double pe( pow(epsilon,d) * pow(espilon,S2-d) * binomialCoeff(C2,C2+C1) * pow(pbinom,C2) * pow(1-pbinom,C1));
-		double pv( pow(espilon,S2) * C2/(C2+C1) * pow(espilon,S2*C2) * C1/(C1+C2) * pow(espilon,S1*C1) );
+	alpha=(C1/C2);
 
-		return pe>pv;
+
+	//~ double S1(U1.size()/2-30);
+	//~ double S2(U2.size()/2-30);
+
+	//~ double pbinom(pow(epsilon,d) * pow(espilon,S2-d));
+
+	//~ double pe( pow(epsilon,d) * pow(espilon,S2-d) * binomialCoeff(C2,C2+C1) * pow(pbinom,C2) * pow(1-pbinom,C1));
+	//~ double pv( pow(espilon,S2) * C2/(C2+C1) * pow(espilon,S2*C2) * C1/(C1+C2) * pow(espilon,S1*C1) );
+
+
+	//~ double pe( pow(epsilon,d)  * pow(epsilon,d*C2) * pow(1-pow(epsilon,d),C1));
+
+
+	//~ double pv( pow(espilon,S2) * C2/(C2+C1) * pow(espilon,S2*C2) * C1/(C1+C2) * pow(espilon,S1*C1) );
+
+	double pe ( pow(epsilon,d)  * pow(epsilon,d*C2));
+	double pv ( (1/alpha) * pow((alpha/(alpha+1)),C1) *  pow( (1/(alpha+1)) ,C2));
+
+	//~ double pe( pow(epsilon,d) * binomialCoeff(C2,C2+C1) * pow(epsilon,C2*d) * pow(1-pow(epsilon,d),C1));
+	//~ double pv(C2/(C2+C1) * pow(1-epsilon,d*C2));
+
+	//~ double pe(pow(0.02,d*C2));
+	//~ double pv(pow(0.98,C2)*pow(C1/(C1+C2),C1)*pow(C2/(C1+C2),C2));
+
+	//~ if(pe<pv and C1>100*C2){
+		//~ cout<<S1<<" "<<S2<<" "<<d<<endl;
+		//~ cout<<C1<<" "<<C2<<endl;
+		//~ cout<<pe<<" "<<pv<<endl;
+		//~ cin.get();
+	//~ }
+
+	return pe>pv;
 }
 
 
