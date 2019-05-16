@@ -35,7 +35,8 @@ using namespace chrono;
 
 
 
-double epsilon(0.02);
+double epsilon(0.01);
+double alpha(100);
 double espilon(1-epsilon);
 
 
@@ -395,43 +396,14 @@ double  binomialCoeff_estimation(uint64_t k, uint64_t n){
 
 
 bool probaclean(vector<bool> U1,vector<bool> U2, double C1, double C2, double d){
+	if(C1/C2>alpha){
+		return true;
+	}
 
-	double alpha(50);
+	double pe( pow(epsilon,d*C2) * pow(1-pow(epsilon,d),C1) * binomialCoeff(C2,C2+C1));
+	double pv( pow( (C2/(C1+C2)) * pow(espilon,d) ,C2) );
 
-	alpha=(C1/C2);
-
-
-	//~ double S1(U1.size()/2-30);
-	//~ double S2(U2.size()/2-30);
-
-	//~ double pbinom(pow(epsilon,d) * pow(espilon,S2-d));
-
-	//~ double pe( pow(epsilon,d) * pow(espilon,S2-d) * binomialCoeff(C2,C2+C1) * pow(pbinom,C2) * pow(1-pbinom,C1));
-	//~ double pv( pow(espilon,S2) * C2/(C2+C1) * pow(espilon,S2*C2) * C1/(C1+C2) * pow(espilon,S1*C1) );
-
-
-	//~ double pe( pow(epsilon,d)  * pow(epsilon,d*C2) * pow(1-pow(epsilon,d),C1));
-
-
-	//~ double pv( pow(espilon,S2) * C2/(C2+C1) * pow(espilon,S2*C2) * C1/(C1+C2) * pow(espilon,S1*C1) );
-
-	double pe ( pow(epsilon,d)  * pow(epsilon,d*C2));
-	double pv ( (1/alpha) * pow((alpha/(alpha+1)),C1) *  pow( (1/(alpha+1)) ,C2));
-
-	//~ double pe( pow(epsilon,d) * binomialCoeff(C2,C2+C1) * pow(epsilon,C2*d) * pow(1-pow(epsilon,d),C1));
-	//~ double pv(C2/(C2+C1) * pow(1-epsilon,d*C2));
-
-	//~ double pe(pow(0.02,d*C2));
-	//~ double pv(pow(0.98,C2)*pow(C1/(C1+C2),C1)*pow(C2/(C1+C2),C2));
-
-	//~ if(pe<pv and C1>100*C2){
-		//~ cout<<S1<<" "<<S2<<" "<<d<<endl;
-		//~ cout<<C1<<" "<<C2<<endl;
-		//~ cout<<pe<<" "<<pv<<endl;
-		//~ cin.get();
-	//~ }
-
-	return pe>pv;
+	return pe>100*pv;
 }
 
 
@@ -534,7 +506,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 
 
 	vector<bool> isaTip(unitigs.size(),false);
-
+	uint64_t multi(0);
 
 	if(arg.unitigThreshold==1){
 		cout<<"\tTipping"<<endl;
@@ -597,16 +569,21 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 							}
 						}
 						if(coverageComparison.size()>1){
+							if(coverageComparison.size()>2){
+								multi++;
+							}
 							sort(coverageComparison.begin(),coverageComparison.end());
 							// DO A KILL
-							auto  U2(unitigs[coverageComparison[0].second]),U1(unitigs[coverageComparison[coverageComparison.size()-1].second]);
-							if(U2.size()<3*2*arg.kmerSize){
-								int d(low_sistance_tip(U1,U2,seqBegin));
-								if(d<3){//TODO CHECK
-									uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1].first);
-									if(probaclean(U1,U2,C1,C2,d)){
-										unitigs[coverageComparison[0].second]={};
-										advanced_tipping++;
+							for(uint iu(0);iu<coverageComparison.size()-1;++iu){
+								auto  U2(unitigs[coverageComparison[0].second]),U1(unitigs[coverageComparison[coverageComparison.size()-1-iu].second]);
+								if(U2.size()<3*2*arg.kmerSize){
+									int d(low_sistance_tip(U1,U2,seqBegin));
+									if(d<3){//TODO CHECK
+										uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1-iu].first);
+										if(probaclean(U1,U2,C1,C2,d)){
+											unitigs[coverageComparison[0].second]={};
+											advanced_tipping++;
+										}
 									}
 								}
 							}
@@ -623,17 +600,21 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 							}
 						}
 						if(coverageComparison.size()>1){
+							if(coverageComparison.size()>2){
+								multi++;
+							}
 							sort(coverageComparison.begin(),coverageComparison.end());
 							//DO A KILL
-							auto U2=(unitigs[coverageComparison[0].second]);
-							if(U2.size()<3*2*arg.kmerSize){
-								auto U1=(unitigs[coverageComparison[coverageComparison.size()-1].second]);
-								int d(low_sistance_tip(U1,U2,seqEnd));
-								if(d<3){//TODO CHECK
-									uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1].first);
-									if(probaclean(U1,U2,C1,C2,d)){
-										unitigs[coverageComparison[0].second]={};
-										advanced_tipping++;
+							for(uint iu(0);iu<coverageComparison.size()-1;++iu){
+								auto  U2(unitigs[coverageComparison[0].second]),U1(unitigs[coverageComparison[coverageComparison.size()-1-iu].second]);
+								if(U2.size()<3*2*arg.kmerSize){
+									int d(low_sistance_tip(U1,U2,seqEnd));
+									if(d<3){//TODO CHECK
+										uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1-iu].first);
+										if(probaclean(U1,U2,C1,C2,d)){
+											unitigs[coverageComparison[0].second]={};
+											advanced_tipping++;
+										}
 									}
 								}
 							}
@@ -801,6 +782,7 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 	cout<<"\tIslands removed: "+intToString(island)<<endl;
 	cout<<"\tBulle removed: "+intToString(bulles)<<endl;
 	cout<<"\tUnitigs compacted: "+intToString(compactions)<<endl;
+	cout<<"\tMulti scenario: "+intToString(multi)<<endl;
 
 	auto endTime=system_clock::now();
     auto waitedFor=endTime-start;
