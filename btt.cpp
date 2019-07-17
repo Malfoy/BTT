@@ -28,8 +28,6 @@
 
 
 
-
-
 using namespace std;
 using namespace chrono;
 
@@ -38,7 +36,8 @@ using namespace chrono;
 double epsilon(0.01);
 double alpha(100);
 double espilon(1-epsilon);
-
+bool plot_low_distance=false;
+bool plot_high_distance=false;
 
 
 string intToString(uint64_t n){
@@ -75,6 +74,7 @@ string revComp(const string& s){
 	}
 	return rc;
 }
+
 
 
 string get_canon(const string& s){
@@ -174,11 +174,7 @@ uint32_t xs(uint32_t y){
 
 
 
-
-
-
 string compactionNoRecur(const string& seq1,const string& seq2, uint k){
-	//~ cout<<seq1<<" "<<seq2<<endl;
 	uint s1(seq1.size()),s2(seq2.size());
 	if(s1==0 or s2==0){return "";}
 	string rc2(revComp(seq2)),end1(seq1.substr(s1-k,k)), beg2(seq2.substr(0,k));
@@ -192,7 +188,6 @@ string compactionNoRecur(const string& seq1,const string& seq2, uint k){
 
 
 string compaction(const string& seq1,const string& seq2, uint k){
-	//~ cout<<seq1<<" "<<seq2<<endl;
 	uint s1(seq1.size()),s2(seq2.size());
 	if(s1==0 or s2==0){return "";}
 	string rc2(revComp(seq2)),end1(seq1.substr(s1-k,k)), beg2(seq2.substr(0,k));
@@ -205,7 +200,6 @@ string compaction(const string& seq1,const string& seq2, uint k){
 
 
 uint getPosition(const vector<vector<bool>>& unitigs,uint n){
-	//~ cout<<"getPOsition"<<n<<endl;
 	auto v(unitigs[n]);
 	if(v.size()%2==1){
 		uint newPos(bool2int(v));
@@ -372,9 +366,6 @@ uint64_t binomialCoeff(uint64_t k, uint64_t n)
     }
     return C[k];
 }
-
-
-
 
 
 
@@ -578,12 +569,16 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 								auto  U2(unitigs[coverageComparison[0].second]),U1(unitigs[coverageComparison[coverageComparison.size()-1-iu].second]);
 								if(U2.size()<3*2*arg.kmerSize){
 									int d(low_sistance_tip(U1,U2,seqBegin));
-									if(d<3){//TODO CHECK
+									if(d >0 and d<4){//TODO CHECK
+
 										uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1-iu].first);
+										if(plot_low_distance){cerr<<C2<<"	"<<C1<<"	"<<d<<"\n";}
 										if(probaclean(U1,U2,C1,C2,d)){
 											unitigs[coverageComparison[0].second]={};
 											advanced_tipping++;
 										}
+									}else{
+										//~ if(plot_high_distance){uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1-iu].first);cerr<<C2<<"	"<<C1<<"	"<<d<<"\n";}
 									}
 								}
 							}
@@ -609,12 +604,16 @@ int cleaning(string outFile, string inputUnitig,args_btt arg){
 								auto  U2(unitigs[coverageComparison[0].second]),U1(unitigs[coverageComparison[coverageComparison.size()-1-iu].second]);
 								if(U2.size()<3*2*arg.kmerSize){
 									int d(low_sistance_tip(U1,U2,seqEnd));
-									if(d<3){//TODO CHECK
+									if(d >0 and d<4){//TODO CHECK
+
 										uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1-iu].first);
+										if(plot_low_distance){cerr<<C2<<"	"<<C1<<"	"<<d<<"\n";}
 										if(probaclean(U1,U2,C1,C2,d)){
 											unitigs[coverageComparison[0].second]={};
 											advanced_tipping++;
 										}
+									}else{
+										//~ if(plot_high_distance){uint C2(coverageComparison[0].first),C1(coverageComparison[coverageComparison.size()-1-iu].first);cerr<<C2<<"	"<<C1<<"	"<<d<<"\n";}
 									}
 								}
 							}
@@ -815,7 +814,7 @@ int main(int argc, char ** argv){
 	argument.high_coverage=10;
 	string outFile("out_tipped");
 	char c;
-	while ((c = getopt (argc, argv, "u:k:t:c:h:f:a:o:T:m:l:L:")) != -1){
+	while ((c = getopt (argc, argv, "u:k:t:c:h:f:a:o:T:m:l:L:P")) != -1){
 		switch(c){
 		case 'u':
 			inputUnitig=optarg;
@@ -854,8 +853,12 @@ int main(int argc, char ** argv){
 		case 'L':
 			argument.high_coverage=stoi(optarg);
 			break;
+		case 'P':
+			plot_low_distance=true;
+			break;
 		}
 	}
+	cerr<<"C2	C1	d\n";
 	argument.nbFiles=(1<<(hashSize-1));
 	if(argument.kmerSize==0){
 		cout<<"Please specify a kmer size"<<endl;
